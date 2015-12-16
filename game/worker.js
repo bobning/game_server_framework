@@ -73,8 +73,8 @@ class AccountManagement {
 
 let accMgr = new AccountManagement();
 
-hub.on('broadcast', accMgr.broadcast);
-hub.on('chat', accMgr.chat);
+// hub.on('broadcast', accMgr.broadcast);
+// hub.on('chat', accMgr.chat);
 
 
 let serverGame = net.createServer(function (socket) {
@@ -84,7 +84,7 @@ let serverGame = net.createServer(function (socket) {
 
 let terminate = function () {
 	console.log('terminateeeeeeee');
-	process.send({txt: 'terminate done'});
+	process.exit();
 };
 
 
@@ -116,5 +116,5 @@ process.on('exit', function(code) {
 
 
 process.on('SIGINT', function() {
-	// terminate();
+	terminate();
 });
