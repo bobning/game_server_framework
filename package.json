@@ -1,0 +1,22 @@
+{
+  "name": "game_server_framework",
+  "version": "0.0.1",
+  "description": "game server framework by nodejs",
+  "main": "index.js",
+  "scripts": {
+    "test": "test"
+  },
+  "keywords": [
+    "nodejs",
+    "game",
+    "server"
+  ],
+  "author": "bobning",
+  "license": "ISC",
+  "dependencies": {
+    "clusterhub": "latest",
+    "lodash": "latest"
+  },
+  "devDependencies": {
+  }
+}
