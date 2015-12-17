@@ -1,8 +1,13 @@
 'use strict';
+let path = require('path');
 let cluster = require('cluster');
 let hub = require('clusterhub');
 let net = require('net');
 let _ = require('lodash');
+
+let handlerMgr = require('./handlerMgr');
+handlerMgr.register(path.join(__dirname, 'handlers'));
+
 
 class Client {
 	construtor(socket) {
