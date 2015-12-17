@@ -8,6 +8,8 @@ let _ = require('lodash');
 let handlerMgr = require('./handlerMgr');
 handlerMgr.register(path.join(__dirname, 'handlers'));
 
+let rpc = require('../rpc');
+
 
 class Client {
 	construtor(socket) {
