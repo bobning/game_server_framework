@@ -5,8 +5,8 @@ let net = require('net');
 let _ = require('lodash');
 
 class Client {
-	construtor(socket1) {
-		this.socket = socket1;
+	construtor(socket) {
+		this.socket = socket;
 	}
 
 	nextReq() {
@@ -77,11 +77,6 @@ let accMgr = new AccountManagement();
 // hub.on('chat', accMgr.chat);
 
 
-let serverGame = net.createServer(function (socket) {
-	
-});
-
-
 let terminate = function () {
 	console.log('terminateeeeeeee');
 	process.exit();
@@ -118,3 +113,26 @@ process.on('exit', function(code) {
 process.on('SIGINT', function() {
 	terminate();
 });
+
+
+let serverGame = net.createServer(function (socket) {
+	socket.setTimeout(90000);
+	socket.setNoDelay(true);
+	socket.setKeepAlive(true, 30000);
+	let client = new Client(socket);
+
+	socket.on('data', function(data) {
+		console.log(data);
+	});
+
+	socket.on('close', function(had_error) {
+		console.log('close', had_error);
+	});
+
+	socket.on('error', function(error) {
+		console.log(error);
+	});
+});
+
+
+serverGame.listen(8000, 'localhost');

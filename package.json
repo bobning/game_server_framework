@@ -15,7 +15,8 @@
   "license": "ISC",
   "dependencies": {
     "clusterhub": "latest",
-    "lodash": "latest"
+    "lodash": "latest",
+    "protobufjs": "latest"
   },
   "devDependencies": {
   }

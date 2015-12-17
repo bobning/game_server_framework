@@ -181,7 +181,7 @@ if (cluster.isMaster) {
 	});
 
 	let startGame = function () {
-		// controller.listen(8000);
+		// controller.listen(8001);
 		for (let i = 0; i < numWorkers; i++) {
 			cluster.fork();
 		}
@@ -189,5 +189,5 @@ if (cluster.isMaster) {
 
 	startGame()
 } else {
-	require('./worker')
+	require('./worker');
 }
