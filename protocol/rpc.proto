@@ -1,0 +1,1698 @@
+package rpc;
+
+// 时间以 _utc 结尾的精确度到秒，用 uint32
+// 时间以 _ms 结尾的精确度到毫秒，用 double
+
+message TransUnit {
+  required Command cmd = 1;
+  optional bytes data = 2;
+  optional int32 flags = 3;
+  optional uint32 usn = 4; // Unit Serial Number // 服务器在reply中会重复客户端发过来的request的usn
+  // PING 指令同步时间
+  optional double client_time_ms = 5; // 如果 PING 时传入此值
+  optional double server_time_ms = 6; // 那么 PONG 时会传回服务器时间
+}
+
+enum Command {
+  PING = 1;
+  PONG = 2;
+  USER_LOG_IN_REQUEST = 10;
+  USER_LOG_IN_REPLY = 11;
+  USER_CREATE_REQUEST = 12;
+  USER_CREATE_REPLY = 13;
+  USER_CHANGE_PASS_REQUEST = 14;
+  USER_CHANGE_PASS_REPLY = 15;
+  USER_BIND_ACCOUNT_REQUEST = 16;
+  USER_BIND_ACCOUNT_REPLY = 17;
+  LOG_IN_REQUEST = 20;
+  LOG_IN_REPLY = 21;
+  BIND_ACCOUNT_REQUEST = 22;
+  BIND_ACCOUNT_REPLY = 23;
+  GENERIC_ERROR = 29;
+  ACCOUNT_INFO = 30;
+  RES_INFO = 31;
+  QUERY_REQUEST = 40;
+  QUERY_REPLY = 41;
+  BUY_REQUEST = 42;
+  BUY_REPLY = 43;
+  SELL_REQUEST = 44;
+  SELL_REPLY = 46;
+  UPDATE_REQUEST = 47;
+  UPDATE_REPLY = 48;
+  UPGRADE_REQUEST = 49;
+  UPGRADE_REPLY = 50;
+  FIGHT_BEGIN_REQUEST = 61;
+  FIGHT_BEGIN_REPLY = 62;
+  FIGHT_END_REQUEST = 65;
+  FIGHT_END_REPLY = 66;
+  FIGHT_SWEEP_REQUEST = 67;
+  FIGHT_SWEEP_REPLY = 68;
+  CRUSADE_BEGIN_REQUEST = 71;
+  CRUSADE_BEGIN_REPLY = 72;
+  CRUSADE_END_REQUEST = 73;
+  CRUSADE_END_REPLY = 74;
+  REDEEM_CODE_REQUEST = 75;
+  REDEEM_CODE_REPLY = 76;
+  CHAT_REQUEST = 77;
+  CHAT_REPLY = 78;
+  CHAT_FORBID_REQUEST = 79;
+  CHAT_FORBID_REPLY = 80;
+  CRUSADE_STAGE_REQUEST = 81;
+  CRUSADE_STAGE_REPLY = 82;
+  PICK_FIRST_HERO_REQUEST = 101;
+  PICK_FIRST_HERO_REPLY = 102;
+  HERO_CUSTOM_REQUEST = 103;
+  HERO_CUSTOM_REPLY = 104;
+  ARENA_CHALLENGE_REQUEST = 111;
+  ARENA_CHALLENGE_REPLY = 112;
+  ARENA_REFRESH_REQUEST = 113;
+  ARENA_REFRESH_REPLY = 114;
+  ROB_CHALLENGE_REQUEST = 115;
+  ROB_CHALLENGE_REPLY = 116;
+  REPLAY_REQUEST = 121;
+  REPLAY_REPLY = 122;
+  DUN_BOSS_FIGHT_REQUEST = 123;
+  DUN_BOSS_FIGHT_REPLY = 124;
+  BOARD_REQUEST = 201;
+  BOARD_REPLY = 202;
+  BROADCAST_MESSAGE = 801;
+  CHAT_MESSAGE = 802;
+  NEEDS_QUERY_MESSAGE = 803;
+  MOCK_REQUEST = 9901;
+  MOCK_REPLY = 9902;
+}
+
+// 一个 User 在各个 game服务器 上有不同的 Account
+
+// user 服务器
+message UserLogInRequest {
+  optional string email = 1;
+  optional string pass = 2;
+  required string device_id = 3;
+  optional string unique_id = 4;
+}
+
+message UserLogInReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NO_ACCOUNT = 2;
+    WRONG_PASS = 3;
+    BLOCKED = 11;
+    BINDED = 12; // 已经绑定，需要邮箱、密码登录
+  }
+  required Result result = 1;
+  optional string unique_id = 2;
+  optional string session_id = 3;
+  repeated string recent_servers = 4; // 废弃 //
+  message Account {
+    required string server = 1;
+    optional string name = 2;
+    optional int32 head = 3;
+    optional int32 level = 5;
+    optional int32 vip = 6;
+  }
+  repeated Account accounts = 5;
+}
+
+message UserCreateRequest {
+  required string email = 1;
+  required string pass = 2;
+}
+
+message UserCreateReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    OLD_ACCOUNT = 2;
+    WRONG_EMAIL = 3;
+    WRONG_PASS = 4;
+    BLOCKED = 11;
+  }
+  required Result result = 1;
+}
+
+message UserChangePassRequest {
+  required string email = 1;
+  required string pass = 2;
+  required string pass_new = 3;
+}
+
+message UserChangePassReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NO_ACCOUNT = 2;
+    WRONG_PASS = 3;
+    WRONG_OLD_PASS = 4;
+    BLOCKED = 11;
+  }
+  required Result result = 1;
+}
+
+message UserBindAccountRequest {
+  required string email = 1;
+  required string pass = 2;
+  required string unique_id = 3;
+}
+
+message UserBindAccountReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    OLD_ACCOUNT = 7;
+    WRONG_EMAIL = 8;
+    WRONG_PASS = 9;
+    NO_ACCOUNT = 10; // unique_id 对应的帐号不存在
+    BLOCKED = 11;
+    BINDED = 12; // 已经绑定，不能再绑定
+  }
+  required Result result = 1;
+}
+
+// game 服务器
+enum DistributionChannel {
+  APPLE_STORE = 0;
+  SDK_91_IOS = 1;
+  SDK_91_ANDROID = 2;
+  SDK_TB_IOS = 3; // 同步推
+  SDK_PP_IOS = 4; // PP 助手
+  SDK_KY_IOS = 5; // 快用
+  SDK_IT_IOS = 6; // iTools
+  SDK_ZQB_IOS = 7; // 中青宝
+  SDK_ZQB_ANDROID = 8;
+}
+
+message LogInRequest {
+  required string unique_id = 1;
+  required string session_id = 2;
+  required DistributionChannel channel = 3;
+  required string client_version = 4;
+  required string device_id = 5;
+  optional string data_version = 6;
+}
+
+message LogInReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    SESSION_EXPIRED = 2;
+    WRONG = 3;
+    BLOCKED = 11;
+  }
+  required Result result = 1;
+  optional AccountInfo account = 2;
+  repeated AnnounceInfo announces = 3;
+  optional uint32 registered_days = 4;
+  optional bool has_announce = 5;
+  optional string data_version = 6;
+}
+
+message BindAccountRequest {
+  required string email = 1;
+  required string pass = 2;
+  required string unique_id = 3;
+}
+
+message BindAccountReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    OLD_ACCOUNT = 7;
+    WRONG_EMAIL = 8;
+    WRONG_PASS = 9;
+    NO_ACCOUNT = 10; // unique_id 对应的帐号不存在
+    BLOCKED = 11;
+    BINDED = 12; // 已经绑定，不能再绑定
+  }
+  required Result result = 1;
+  repeated ResInfo infos = 2;
+}
+
+message GenericError {
+  enum Error {
+    ONLINE_OTHER_LOCATION = 1; // 玩家已从别处登录
+  }
+  required Error error = 1;
+}
+
+message PlayerCommon {
+  required double id = 1;
+  optional string name = 2;
+  optional int32 head = 3;
+  optional int32 title_id = 4;
+  optional int32 level = 5;
+  optional int32 vip = 6;
+  optional int32 force = 10;
+}
+
+message Countdown {
+  required int32 left_seconds = 1; // 如为 0 则表示已达到最大值
+  required int32 value = 2;
+}
+
+message AccountInfo {
+  optional double id = 1;
+  optional string name = 2;
+  optional int32 level = 3;
+  optional int32 exp = 4;
+  optional int32 diamond = 5;
+  optional int32 gold = 6;
+  optional int32 head = 7;
+  optional int32 free_chat = 8;
+  optional int32 vip = 9;
+  optional int32 vip_exp = 10;
+  optional Countdown energy = 11;
+  optional int32 tutorial = 12;
+  optional int32 title_id = 14;
+  repeated int32 sub_title_ids = 15; // 两个副称号
+}
+
+message AnnounceInfo {
+  enum TYPE {
+    NONE = 0;
+    DAY_SIGN_7 = 1;  //7天签到
+    DAY_SIGN_30 = 2;  //30天签到
+    CHARGE = 3;  // 充值
+    DIAMOND_JET = 4;  // 钻石喷射
+    EAT_BIG_MEAL = 5;  // 吃大餐
+    LIMITED_TIME_RECHARGE = 6;  // 限时充值
+    TREASURE_MOZU = 7;  // 魔族宝藏
+    DUNGEON = 8;  // 地下城
+    EXTERNAL_LINK = 9;  // 外链
+    GROW_PLAN = 10; // 成长计划
+    DIAMOND_REWARD = 11; // 元宝回馈
+  }
+  optional TYPE type = 1;
+  optional string link = 2;
+  optional string heading = 3;
+  optional string detail = 4;
+}
+
+message ItemInfo {
+  required int32 meta = 2;
+  required sint32 count = 3;
+  // meta = 99991 成长计划礼包 时
+  /// int_values = [已经领取的最高等级，未领取等级1，未领取等级2，……]
+  repeated sint32 int_values = 4;
+}
+
+message ShopItemInfo {
+  required int32 id = 1;
+  required int32 meta = 2;
+  required int32 currency = 3;
+  required int32 price = 4;
+  optional string description = 10;
+  optional int32 count = 11 [ default = 1 ];
+  optional int32 discount = 12 [ default = 100 ];
+  enum Label {
+    NONE = 0;
+    NEW = 1;
+    HOT = 2;
+    SALE = 3;
+  }
+  optional Label label = 13;
+}
+
+message Attributes {
+  // http://wowpedia.org/Attributes
+  optional sint32 strength = 1;
+  optional sint32 agility = 2;
+  optional sint32 intellect = 3;
+  optional sint32 spirit = 4;
+}
+
+message HeroInfo {
+  required double id = 1;
+  optional int32 meta = 2;
+  optional int32 level = 5;
+  optional int32 exp = 6;
+  repeated int32 skill_levels = 7;
+  optional int32 awaker_level = 8;
+  // 请读表计算各战斗数值
+  optional Attributes custom_attrs = 21; // 洗炼加成
+  optional Attributes custom_attrs_pending = 22; // 本次洗炼变化数值
+  message Purple { // 紫装属性重铸
+    required int32 num = 1; // 套装件数
+    optional int32 pool_id = 2; // 属性
+  }
+  repeated Purple purples = 25;
+  optional Purple purple_pending = 26; // 未确认保存的重铸属性
+}
+
+message HeroCustomInfo {
+  optional uint32 seconds_to_clear_times = 1; // 距离次数清零的秒数
+  optional int32 free_diamond_times_used = 2; // 已废弃 //
+  optional int32 free_times_used = 3; // 已经用过的免费单次元宝洗炼次数
+}
+
+message TrainerInfo {
+  required int32 id = 1;
+  optional int32 quality = 2; // 品质（0白1绿2蓝3紫）
+  optional double hero_id = 5; // 可更新
+  optional uint32 start_utc = 6; // 废弃 // 开始时间
+  optional uint32 seconds_to_update = 7; // 距离下次刷新的秒数，没有此项或为0表示已结束
+  optional uint32 seconds_left = 8; // 剩余训练秒数，没有此项或为0表示已结束
+}
+
+message EquipInfo {
+  required double id = 1;
+  optional int32 meta = 2;
+  optional int32 level = 5;
+  optional int32 upgrade_times = 8; // 升级装备后在 changes 里出现
+  repeated int32 gems = 11; // 可更新
+  optional double hero_id = 50; // 可更新
+}
+
+message TeamInfo {
+  // 可更新
+  enum Index {
+    MIN = 0; // 下限
+    PVE = 1;
+    ARENA = 2;
+    ARENA_DEFEND = 3; // 竞技场防御阵型
+    MAX = 4; // 上限
+  }
+  message Team {
+    required Index index = 1;
+    repeated double heroes = 2;
+  }
+  repeated Team teams = 1;
+}
+
+message CheckpointInfo {
+  required int32 meta = 1;
+  enum Rating {
+    NOT_OPEN = 0;
+    OPENED = 1;
+    ZERO_STAR = 11;
+    C = 12;
+    B = 13;
+    A = 14;
+  }
+  optional Rating rating = 2;
+  optional int32 times_today = 4; // 已经战斗过的次数
+  optional int32 bought_times_today = 5; // 买来的战斗次数
+  optional int32 buy_times_today = 6; // 购买次数，上限是 vip.elite_story
+}
+
+message UnrivaledInfo {
+  // 无双关的大关。当前只有领奖信息。小关记录仍在 CheckpointInfo
+  required int32 level = 1;
+  optional bool rewarded = 2;
+}
+
+message DungeonInfo {
+  required int32 meta = 1;
+  optional bool is_open = 2; // 是否开放
+  optional int32 seconds_left = 3; // 多少秒后需要刷新
+  optional int32 seconds_to_fight = 4; // 战斗冷却剩余时间
+  optional int32 times_today = 5; // 今天已经战斗过的次数
+  repeated double heroes = 6;
+}
+
+message CreditInfo {
+  optional int32 credit = 1;
+  optional int32 rank = 2;
+}
+
+message BountyInfo {
+  optional int32 score = 1;
+  repeated RewardItem rewards = 2;
+  optional bool rewarded = 3;
+}
+
+message MissionInfo {
+  required int32 id = 1;
+  optional int32 current = 2;
+  optional int32 need = 3;
+  optional int32 neg = 4; // 如果存在，则 neg-current, neg-need 才是需要显示的数值
+}
+
+message DunBossInfo {
+  required double id = 1;
+  optional int32 meta = 2;
+  optional int32 life = 3;
+  optional int32 current_life = 4;
+  optional int32 seconds_to_flee = 5; // 为 0 或 null 表示已结束
+  optional int32 seconds_to_expire = 6; // 为 0 或 null 就不需要显示了
+  optional int32 player_number = 7;
+  optional bool participated = 8;
+  optional string discover_name = 9;
+  optional bool rewarded = 10; // 可用 UpdateRequest 设为 true
+}
+
+message DunBossDetailInfo {
+  required double id = 1;
+  optional double discover_id = 2; // 发现者id
+  optional double killer_id = 3; // 击杀者id
+  message Player {
+    required double id = 1;
+    optional int32 fights = 2;
+    optional int32 damage = 3;
+    optional int32 head = 4;
+    optional string name = 5;
+    optional int32 level = 6;
+    optional int32 vip = 9;
+    optional int32 title_id = 14;
+  }
+  repeated Player players = 4;
+}
+
+message DunBountyInfo {
+  optional uint32 expire_utc = 1; // 过期时间
+  optional uint32 seconds_to_expire = 2;
+  repeated BountyInfo credits = 3;
+  repeated BountyInfo ranks = 4;
+}
+
+message ChickenInfo {
+  optional bool is_open = 1;
+  optional bool is_eaten = 2;
+  optional uint32 seconds_to_open = 3; // 到下次开放时间
+  optional uint32 seconds_to_close = 4; // 如开放，则是距离本次结束的秒数，否则是 null
+  optional uint32 hour_open = 5; // 下次开放时间
+  optional uint32 hour_close = 6; // 本次结束时间
+}
+
+message MailInfo {
+  required double id = 1;
+  enum Type {
+    SYSTEM = 0;
+    MAIL = 1;
+    FRIEND_REQUEST = 2;
+  }
+  optional Type type = 2;
+  optional double sender_id = 3;
+  optional string name = 4;
+  optional int32 level = 5;
+  optional uint32 online_utc = 6; // seconds since epoch
+  optional uint32 recv_utc = 7; // 收件时间
+  optional uint32 expire_utc = 8; // 过期时间
+  optional int32 head = 9;
+  optional int32 vip = 10;
+  optional string title = 11; // 邮件标题
+  optional string text = 12;
+  optional int32 title_id = 14; // 玩家称号ID
+  repeated RewardItem items = 16;
+  optional bool read = 21;
+  optional double dest_id = 26; // 收件人ID，只在发邮件时设置
+}
+
+message FriendInfo {
+  required double id = 1;
+  enum Type {
+    FRIEND = 0;
+    REQUEST = 1;
+    BROKEN = 2;
+  }
+  optional Type type = 2;
+  optional int32 head = 3;
+  optional string name = 4;
+  optional int32 level = 5;
+  optional uint32 online_utc = 6; // seconds since epoch
+  optional int32 vip = 7;
+  optional bool is_online = 9;
+  optional int32 force = 10;
+  optional bool sent_gift = 11;
+  optional bool recv_gift = 12;
+  optional bool got_gift = 13;
+  optional int32 title_id = 14; // 玩家称号ID
+}
+
+message DetailInfo {
+  required double id = 1;
+  optional int32 head = 3;
+  optional string name = 4;
+  optional int32 level = 5;
+  optional int32 force = 6;
+  optional int32 force_rank = 8;
+  optional FriendInfo.Type friend_type = 7;
+  optional int32 vip = 9;
+  message Hero {
+    required int32 meta = 1;
+    optional int32 level = 2;
+  }
+  repeated Hero heroes = 11;
+  optional int32 pet_id = 12; // 神兽id
+  optional int32 title_id = 14; // 玩家称号ID
+}
+
+message PackInfo {
+  required double id = 1;
+  optional int32 meta = 2;
+  optional int32 count = 3;
+  optional int32 currency = 4;
+  optional int32 price = 5;
+  optional int32 stock = 6; // 存货。小于1表示售罄。
+}
+
+message FighterAttrs { // 战斗中数据
+  optional sint32 hp_max = 11; // 光环只影响最大生命值，当前生命如超过最大值，则应使用最大值
+  optional sint32 hp_current = 12; // 当前生命 // 如未提供，则使用最大生命
+  optional sint32 rage = 13; // 当前怒气 // 如未提供，则使用 0
+  optional sint32 shield_max = 14;
+  optional sint32 shield_current = 15;
+  optional sint32 atk_phy = 31;
+  optional sint32 atk_mag = 32;
+  optional sint32 def_phy = 33;
+  optional sint32 def_mag = 34;
+  optional sint32 hit = 35; // 命中
+  optional sint32 dod = 36; // 闪避
+  optional sint32 cri = 37; // 暴击
+  optional sint32 cri_def = 38; // 暴击抗性
+  optional sint32 recover_hp = 39; // 打完一拨怪时回复
+  optional sint32 recover_rage = 40; // 打完一拨怪时回复
+  // 技能附加
+  optional sint32 dmg_add = 42;
+  optional sint32 dmg_add_p = 43;
+  optional sint32 atk_p = 44;
+  optional sint32 heal_add = 45;
+  optional sint32 dmg_deflect = 49;
+  optional sint32 berserk = 50;
+  optional sint32 silent = 51;
+  repeated sint32 stun = 52;
+  repeated sint32 dot = 53;
+  optional sint32 survive = 54;
+  optional sint32 cri_dmg_add_p = 55;
+  optional sint32 recover_shield_on_hit = 56;
+  optional sint32 extra_rage_on_hit = 59;
+}
+
+message FighterInfo {
+  optional sint32 pos = 1; // 1 2 3 4 5 6
+  optional int32 meta = 2; // 英雄 meta
+  optional int32 level = 3;
+  repeated int32 skill_levels = 4;
+  optional int32 weapon = 5;
+  optional FighterAttrs attrs = 6;
+}
+
+message CrusadeState {
+  required double hero_id = 1;
+  optional int32 hp_current = 2;
+  optional int32 rage = 3;
+  optional int32 shield_current = 4;
+  optional int32 stage = 5; // 已经驻扎在某一关
+}
+
+message CrusadeTeam {
+  optional string name = 2;
+  optional int32 level = 3;
+  optional int32 force = 4; // 战力值
+  repeated FighterInfo fighters = 5;
+  optional int32 pet = 6; // pet_meta
+}
+
+message CrusadeInfo {
+  optional int32 stage = 1;
+  optional CrusadeTeam opp = 2;
+  repeated double heroes = 3; // 出战阵容
+  repeated CrusadeState states = 4; // 已上阵英雄的剩余血量
+  optional int32 reset = 5; // 剩余重置次数
+  optional int32 force = 6; // 本次远征查找对手使用的战力值
+  repeated RewardItem stage_rewards = 11; // 驻扎奖励
+}
+
+message InvitationInfo {
+  optional string code = 1; // 邀请码
+  optional string inviter = 2; // 被谁邀请
+  message Invitee {
+    required double id = 1;
+    optional string name = 2;
+    optional int32 level = 3;
+    optional int32 rewarded_level = 4;
+    optional int32 head = 5;
+    optional int32 vip = 9;
+    optional int32 title_id = 14; // 玩家称号ID
+  }
+  repeated Invitee invitees = 3;
+}
+
+message BlackInfo {
+  required double id = 1;
+  optional string name = 2;
+  optional int32 level = 3;
+  optional int32 head = 5;
+  optional int32 vip = 9;
+  optional int32 title_id = 14; // 玩家称号ID
+}
+
+enum SkillShopCategory {
+  FIRST = 0;
+  SECOND = 1;
+  THIRD = 2;
+  FOURTH = 3;
+  DIAMOND_FOURTH = 4;
+  MILLION = 100;
+}
+
+enum HRCategory {
+  ONCE_GOLD = 1;
+  TEN_GOLD = 2;
+  ONCE_DIAMOND = 3;
+  TEN_DIAMOND = 4;
+}
+
+message BonusReward {
+  enum Category {
+    CRUSADE_DOUBLE_CREDITS = 3;
+    CHECKPOINT_DOUBLE_DROPS = 4;
+    DUNGEON_DOUBLE_DROPS = 5;
+  }
+  required Category category = 1;
+  optional uint32 left_seconds = 2; // 0 表示结束
+}
+
+message BargainerItem {
+  required int32 meta = 1; // BuyRequest.meta
+  optional int32 priority = 2;
+  optional uint32 wait_seconds = 3; // cd
+  optional ItemInfo item = 4;
+  repeated ItemInfo needs = 5;
+}
+
+message Bargainer { // 神秘商人
+  optional uint32 start_utc = 1; // BuyRequest.id
+  optional uint32 end_utc = 2;
+  repeated BargainerItem items = 3;
+}
+
+message CheckpointReward {
+  required int32 meta = 1; // 大关*10 + 难度 // BuyRequest.meta
+  repeated int32 stars = 3; // 已经奖励的星星数量 // BuyRequest.count
+}
+
+message PetInfo {
+  required int32 type = 1; // 类型
+  optional int32 level = 2;
+  optional int32 times = 3; // 已升级次数
+  optional bool using = 4; // 是否上阵。所有神兽里最多有一个上阵的
+  // 移至 ResInfo.int_values[0]
+  // optional uint32 seconds_to_feed = 5; // 喂养冷却时间
+  // 移至 ResInfo.int_values[1]
+  // optional int32 feed_times = 6; // 已喂养次数，冷却时间为0后失效
+  // 注意 ResInfo.int_values 在不需要冷却时可能为空数组
+}
+
+message LootInfo {
+  required int32 meta = 1;
+  optional sint32 count = 2;
+}
+
+message RobInfo {
+  optional sint32 times = 1; // 今日已抢夺次数
+}
+
+message RobTargetInfo {
+  required int32 meta = 1;
+  repeated PlayerCommon victims = 2;
+}
+
+message DrumInfo {
+  repeated ItemInfo items = 2;
+  optional int32 refresh_times = 3; // 已刷新次数
+  optional uint32 seconds_to_clear_refresh = 4; // 距离刷新次数清零的秒数
+  optional int32 pick_index = 5; // 使用锤子时，在changes里会有此值，表示得到了第几个
+}
+
+message TitleInfo {
+  optional int32 base = 1; // 基础meta用于分组，比如 300001 和 300002 的base都是 300000
+  optional int32 meta = 2;
+}
+
+enum ResCategory {
+  ACCOUNT = 1;
+  ITEM = 2; // 不可抢夺道具
+  HERO = 3;
+  EQUIP = 4;
+  GEM = 6; // 已废弃
+  TEAM = 11;
+  HERO_CUSTOM = 13; // 英雄洗炼信息，查询hero时会自动附带
+  CREDIT = 15; // 积分。此处只是占位符
+  BOUNTY = 16; // 赏金：达到一定积分后给奖励。此处只是占位符
+  TRAINER = 17; // 训练营
+  PET = 18; // 神兽 // Query:查询 Update:上阵 Upgrade:升级
+  LOOT = 19; // 可抢夺道具 // Query:查询
+  /***
+   * CHECKPOINT 关卡信息
+   ** Query查询
+   * 返回的 ResInfo 中 int_values 分别表示
+   *  [ 今日剩余秒数，今日已扫荡次数 ]
+   ** Buy 重置今日次数：meta填关卡id，count不填
+   * 实际上是增加今日购买到的次数
+   */
+  CHECKPOINT = 21;
+  ARENA = 22;
+  REPLAY = 23;
+  DUNGEON = 24;
+  /***
+   * UNRIVALED 无双关信息
+   ** 无需 Query，会随着 CHECKPOINT 同时给出
+   ** Buy 领奖： meta填level
+   */
+  UNRIVALED = 25;
+  MISSION = 26;
+  REWARD_GROUP = 27;
+  /***
+   * DUN_BOSS 地下城随机BOSS
+   ** Query查询
+   * 返回的 ResInfo 中 int_values 分别表示
+   *  [ 距离下次战斗的冷却秒数，免费冷却次数 ]
+   */
+  DUN_BOSS = 28;
+  DUN_BOSS_DETAIL = 29;
+  CHICKEN = 30;
+  MAIL = 31;
+  SHOP = 32;
+  MYSTERY_SHOP = 33;
+  HR_SHOP = 34; // 酒馆招募
+  SKILL_SHOP = 35;
+  ALCHEMY = 36;
+  DIAMOND_BOOST = 37;
+  MONSTER_SHOP = 38;
+  DAILY_LOGIN = 39;
+  SEVEN_DAYS = 40;
+  /***
+   * FRIEND 好友信息
+   ** Query 查询
+   * 返回的 ResInfo 中 int_values 分别表示
+   *  [ 今日精力领取过次数，今日精力最大领取次数 ]
+   ** Buy 加好友
+   ** Update 同意、拒绝好友请求；赠送、领取精力
+   */
+  FRIEND = 41;
+  FRIEND_SEARCH = 42; // 搜索好友
+  DETAIL = 43; // 玩家详情
+  FORCE_DETAIL = 44; // 战力排行榜中玩家详情
+  PVP_DETAIL = 45; // 竞技阵容
+  CRUSADE = 46; // 远征
+  INVITATION = 47; // 邀请
+  /***
+   * BLACK 黑名单
+   ** Buy 添加
+   ** Sell 删除
+   */
+  BLACK = 48;
+  SPECIAL_CHARGE = 49; // 使用 ItemInfo
+  // PACK 包裹。此处只是占位符
+  PACK = 51;
+  /***
+   * PACK_ARENA 竞技场积分兑换信息
+   ** Query查询
+   * 返回的 ResInfo 中 int_values 分别表示
+   *  [ 距离下次更新秒数，下次更新距离今早零时的分钟数，刷新需要钻石数 ]
+   ** Buy购买
+   * 需要所有信息，包括数量、钱数
+   ** Update强制刷新
+   * 传入空的 ResInfo 即可
+   */
+  PACK_ARENA = 52; // 使用 PackInfo
+  PACK_CRUSADE = 53; // 使用 PackInfo
+  DUN_CREDIT = 61; // 使用 CreditInfo
+  DUN_BOUNTY = 62;
+  /***
+   * CHARGE_BOUNTY 限时累积充值奖励
+   ** Query查询
+   * 返回内容为 BountyInfo bounties
+   * 返回的 ResInfo 中 int_values 分别表示
+   *  [ 累积人民币数量，开始时间utc，结束时间utc ]
+   * 结束时间可能没有，如果后台没有指定结束时间
+   */
+  CHARGE_BOUNTY = 63;
+  MONTH_CARD = 64;
+  BONUS_REWARD = 65;
+  BARGAINER = 66;
+  CHECKPOINT_REWARD = 67;
+  /***
+   * CONSUME_BOUNTY 限时累积消费奖励
+   ** Query查询
+   * 返回内容为 BountyInfo bounties
+   * 返回的 ResInfo 中 int_values 分别表示
+   *  [ 累积人民币数量，开始时间utc，结束时间utc ]
+   * 结束时间可能没有，如果后台没有指定结束时间
+   */
+  CONSUME_BOUNTY = 68;
+  ANNOUNCE = 69;
+  CONTINUES_CHARGE = 71;
+  EQUIP_FUSE = 78; // 装备合成 Upgrade
+  ITEM_FUSE = 79; // 道具合成 Buy
+  PURPLE = 80; // 紫装套装属性 Buy（有meta、有hero_id）：重铸；Buy（无meta、有hero_id）：确认重铸；Sell（有hero_id）：放弃重铸
+  ROB = 81; // 抢夺次数信息 // Query
+  ROB_TARGET = 82; // 抢夺目标 // Buy:获取 Sell:强制刷新
+  ROB_DETAIL = 83; // 抢夺目标的阵容信息 因为有机器人，所以不能直接用 PVP_DETAIL 并且需要传入这是抢哪个道具的meta
+  /***
+   * DRUM 击鼓夺宝
+   ** Query查询
+   * 返回的 DrumInfo 中如果 items为空，则需要用 BuyRequest 免费刷新
+   ** Buy刷新或使用锤子
+   * meta 为空的时候表示刷新，price 必须设置为消耗钻石数，0 或 100
+   * meta 为锤子meta是表示使用相应的锤子，在锤子不足时，需要将 price 设置为消耗钻石数
+   */
+  DRUM = 84;
+  TITLE = 85;
+}
+
+message ResInfo {
+  required ResCategory category = 1;
+  optional AccountInfo account = 2;
+  repeated double added_ids = 4;
+  repeated double removed_ids = 5;
+  repeated sint32 int_values = 6; // 某些类别里有特殊用途
+  repeated ItemInfo items = 10;
+  repeated HeroInfo heroes = 11;
+  repeated EquipInfo equips = 12;
+  optional HeroCustomInfo hero_custom = 13;
+  optional TeamInfo team = 14;
+  optional CreditInfo credit = 15;
+  repeated BountyInfo bounties = 16;
+  repeated TrainerInfo trainers = 17;
+  repeated PetInfo pets = 18;
+  repeated LootInfo loots = 19;
+  repeated CheckpointInfo checkpoints = 21;
+  optional ArenaInfo arena = 22;
+  repeated ReplayInfo replays = 23;
+  repeated DungeonInfo dungeons = 24;
+  repeated UnrivaledInfo unrivaleds = 25;
+  repeated MissionInfo missions = 26;
+  repeated RewardGroupInfo reward_groups = 27;
+  repeated DunBossInfo dun_bosses = 28;
+  optional DunBossDetailInfo dun_boss_detail = 29;
+  optional ChickenInfo chicken = 30;
+  repeated MailInfo mails = 31;
+  repeated ShopItemInfo shopitems = 32;
+  repeated MysteryShopItemInfo mshopitems = 33;
+  repeated ActivityInfo activityInfos = 34;
+  repeated int32 skillshopinfo = 35;
+  repeated int32 alchemyinfo = 36; // [今日剩余秒数，已买金币次数，已买精力次数]
+  optional int32 diamondboost_count = 37;
+  repeated MonsterShopItemInfo monstershopitems = 38;
+  optional DailyLoginInfo logininfo = 39;
+  repeated FriendInfo friends = 41;
+  repeated DetailInfo details = 42;
+  optional CrusadeInfo crusade = 46;
+  optional InvitationInfo invitation = 47;
+  repeated BlackInfo blacks = 48;
+  repeated PackInfo packs = 51;
+  optional DunBountyInfo dun_bounty = 62;
+  repeated BonusReward bonus_rewards = 65;
+  optional Bargainer bargainer = 66;
+  repeated CheckpointReward checkpoint_rewards = 67;
+  repeated AnnounceInfo announces = 69;
+  repeated ContinuesRechargeInfo continues_recharge_info = 71;
+  optional RobInfo rob = 80;
+  repeated RobTargetInfo rob_targets = 81;
+  optional DrumInfo drum = 84;
+  repeated TitleInfo titles = 85;
+}
+
+message ActivityInfo {
+  required int32 id = 1;
+  optional int32 start = 2;
+  optional int32 stop = 3;
+  optional bool can_open = 4; // 如果此处为false，那么即使时间到了也不开放
+  optional sint32 seconds_to_start = 5;
+  optional int32 reward = 10;
+  optional int32 myscore = 11;
+  optional int32 myrank = 12;
+  repeated int32 cd = 13;
+  repeated HRShopRankItemInfo rank = 14;
+  optional uint32 free_times_used = 15; // hrshop 金币免费招募本日已经使用过的次数
+  optional uint32 seconds_to_clear_free_times = 16;
+}
+
+message HRShopRankItemInfo {
+  required string name = 1;
+  required int32 score = 2;
+}
+
+message MonsterShopItemInfo {
+  required int32 id = 1;
+  required int32 quality = 2;
+  required int32 meta = 3;
+  required int32 price = 4;
+  optional int32 count = 11 [ default = 1 ];
+  optional int32 stock = 12 [ default = 1 ];
+}
+
+message ContinuesRechargeInfo {
+  required int32 st = 2;
+  required int32 et = 3;
+  required int32 lt = 4;
+  repeated int32 s = 5;
+  message Reward {
+    repeated int32 meta_or_count = 1;
+  }
+  repeated Reward rewards = 6;
+}
+
+message MysteryShopItemInfo {
+  required int32 id = 1;
+  required int32 meta = 2;
+  required int32 currency = 3;
+  required int32 price = 4;
+  optional int32 stock = 11 [ default = 1 ];
+  optional int32 count = 12 [ default = 1 ];
+}
+
+message DailyLoginInfo {
+  repeated int32 seven_days_status = 1;
+  optional int32 account_login_days = 2;
+  optional int32 month_card_start_date_1 = 3;
+  optional int32 month_card_start_date_2 = 4;
+  repeated int32 month_card_status_1 = 5;
+  repeated int32 month_card_status_2 = 6;
+  optional int32 next_month_status_1 = 7;
+  optional int32 next_month_status_2 = 8;
+}
+
+message QueryRequest {
+  repeated ResCategory categories = 1;
+  optional double mail_id = 3; // 传入已取过的id，避免重复
+  optional double detail_id = 4; // 要查询的玩家id
+  optional string friend_search = 5; // 搜索好友
+  optional double dun_boss_detail_id = 6;
+  optional int32 meta = 7;
+}
+
+message QueryReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    NOT_ENOUGH_LEVEL = 11;
+    NOT_FOUND = 13;
+  }
+  required Result result = 1;
+  repeated ResInfo infos = 2;
+}
+
+message BuyRequest {
+  required ResCategory category = 1;
+  optional int32 meta = 2;
+  optional int32 count = 3 [default = 1]; // 数量对 Item/Shop 生效，其他默认为 1
+  optional double id = 4;
+  optional int32 currency = 6;
+  optional int32 price = 7;
+  optional int32 vip_diamond = 8;
+  optional int32 quality = 9;
+}
+
+message BuyReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    NOT_AFFORDABLE = 11;
+    NOT_VALID = 12;
+    NOT_FOUND = 13;
+    FULL = 14;
+    NOT_ENOUGH_LEVEL = 15;
+    HAS_OLD = 21; // 已有，比如英雄
+    MAX_TIMES_ALCHEMY = 31;
+    MAX_TIMES_ENERGY = 32;
+    OPP_FRIEND_FULL = 33; // 对方好友满
+    OPP_FRIEND_REQ_FULL = 34; // 对方好友请求满
+    FRIEND_FULL = 36; // 好友满
+  }
+  required Result result = 1;
+  repeated ResInfo infos = 2;
+  repeated ResInfo changes = 3;
+}
+
+message SellRequest {
+  required ResCategory category = 1;
+  required double id = 2; // 对于 Item 赋值 meta
+  required int32 count = 3 [default = 1];
+}
+
+message SellReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    NOT_FOUND = 11;
+    NOT_ENOUGH = 12;
+    NOT_ENOUGH_LEVEL = 21;
+  }
+  required Result result = 1;
+  repeated ResInfo infos = 2;
+  repeated ResInfo changes = 3;
+}
+
+message UpdateRequest {
+  // 用于更新 TeamInfo 和其他标注“可更新”的属性
+  required ResInfo info = 1;
+}
+
+message UpdateReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    NOT_FOUND = 11;
+    NOT_AFFORDABLE = 12; // 货币不足
+    NOT_ENOUGH_LEVEL = 13;
+    FULL = 14;
+    NOT_VALID = 15;
+    HAS_OLD = 21; // 已有数据
+    DUPLICATE = 22; // 重复
+    SENSITIVE = 23; // 包含敏感词
+    NAME_LENGTH = 24; // 名字需要2~6字符
+    NAME_SPACE = 25; // 名字含有空格
+    WRONG_INVITE = 31; // 609015 邀请码有误，请核对。
+    DUN_BOSS_REWARD_EX = 32;
+    DUN_BOSS_REWARDED = 33;
+    CHICKEN_NOT = 34;
+    CHICKEN_EAT = 35;
+    FRIEND_FULL = 36;
+    OPP_FRIEND_FULL = 37;
+  }
+  required Result result = 1;
+  repeated ResInfo infos = 2;
+  repeated ResInfo changes = 3;
+}
+
+message UpgradeRequest {
+  required ResCategory category = 1;
+  optional double id = 2;
+  optional bool equip_max_level = 3;
+  optional int32 vip_diamond = 4;
+  repeated double auto_heroes = 5; // 为指定的英雄自动升级类别 HERO, EQUIP
+  // 消耗资源
+  message Consumable {
+    required ResCategory category = 1;
+    required double id = 2; // 对于 Item 赋值 meta
+    required int32 count = 3 [default = 1];
+  }
+  repeated Consumable consumes = 11;
+}
+
+message UpgradeReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    NOT_FOUND = 11;
+    NOT_AFFORDABLE = 12; // 货币不足
+    MAX_LEVEL = 13; // 已是最高级
+    NOT_QUALIFIED = 14; // 对象或消耗品不达标
+    COOLING_DOWN = 15;
+    MAX_LEVEL_EQUIP = 21;
+    ACC_LEVEL_EQUIP = 22;
+    MAX_LEVEL_HERO = 23;
+    ACC_LEVEL_HERO = 24;
+    MAX_GRADE_HERO = 25;
+    FULL_ENERGY = 26;
+  }
+  required Result result = 1;
+  repeated ResInfo infos = 2;
+  repeated ResInfo changes = 3;
+}
+
+message RewardItem {
+  optional int32 meta = 1;
+  optional int32 count = 2 [default = 1];
+  optional int32 old_meta = 3;
+  optional int32 old_count = 4;
+}
+
+message RewardGroupInfo {
+  repeated RewardItem items = 1;
+  optional int32 gold = 2;
+  optional int32 exp = 3;
+}
+
+message FightBeginRequest {
+  required int32 meta = 1;
+  repeated double heroes = 3;
+}
+
+message FightBeginReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    NOT_OPEN = 11;
+    LOW_ENERGY = 12;
+    CP_OUT_OF_TIMES = 21;
+    NOT_ENOUGH_LEVEL = 22;
+  }
+  required Result result = 1;
+  repeated ResInfo infos = 2;
+  repeated RewardItem rewards = 11;
+}
+
+message FightingInfo {
+  required uint32 step = 1;
+  enum Action {
+    SAY = 0;
+    HIT = 1; // 普通攻击
+    SKILL = 2; // 技能
+    BUFF = 3; // BUFF 增减
+    OVER_TIME = 4; // 持续性伤害 DOT
+    NEXT_STAGE = 6; // 切到下一组怪
+    NEXT_ROUND = 7;
+    NEXT_TURN = 8; // PVP 中双方一轮出手完毕
+  }
+  required Action action = 2;
+  optional sint32 pos = 3; // 左:1,2,3,4;右:-1,-2,-3,-4;宠物:99,-99
+  optional string text = 4;
+  optional int32 skill = 5;
+  message Victim {
+    required sint32 pos = 1;
+    enum Type {
+      NORMAL = 0;
+      MISS = 1;
+      CRITICAL = 2;
+      HEAL = 3;
+      RAGE = 4; // 怒气变化
+      DEFLECT = 5; // 被反弹的
+      VAMP_LOST = 6; // 被吸取的
+      VAMP_GET = 7; // 吸取到的
+      RECOVER_SHIELD_ON_HIT = 8;
+      BUFF = 9; // BUFF 增减，比如被净化
+    }
+    optional Type type = 2;
+    optional FighterAttrs change = 3; // 变化值
+    optional FighterAttrs final = 4; // 最终值
+    optional FighterAttrs buff_positive = 5; // 正的buff
+    optional FighterAttrs buff_negative = 6; // 负的buff
+    optional sint32 by_pos = 11; // 技能名称 的位置
+    optional int32 by_skill = 12; // 技能名称 的技能
+  }
+  repeated Victim victims = 6;
+}
+
+message BattleInfo {
+  repeated FighterInfo fighters = 1;
+  repeated FighterInfo end_fighters = 2;
+  message BattlePet {
+    optional sint32 pos = 1; // 99 / -99 标明哪一方
+    optional int32 meta = 2; // pet表id
+  }
+  repeated BattlePet pets = 3;
+}
+
+message FightEndRequest {
+  required int32 meta = 1;
+  repeated FightingInfo info = 2;
+  required bool win = 3;
+  optional bool skip = 4; // 跳过战斗，沿用之前的星级
+}
+
+message FightEndReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    INVALID_BATTLE = 10;
+  }
+  required Result result = 1;
+  repeated ResInfo infos = 2;
+  repeated ResInfo changes = 3;
+  optional CheckpointInfo.Rating rating = 4;
+}
+
+message FightSweepRequest {
+  required int32 meta = 1;
+  required int32 times = 2;
+}
+
+message FightSweepReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    NOT_OPEN = 11;
+    LOW_ENERGY = 12;
+    NOT_ENOUGH_LEVEL = 13;
+    CP_OUT_OF_TIMES = 21;
+  }
+  required Result result = 1;
+  repeated ResInfo infos = 2;
+  repeated ResInfo changes = 3;
+}
+
+message CrusadeBeginRequest {
+  repeated double heroes = 1;
+}
+
+message CrusadeBeginReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    LOW_ENERGY = 12;
+    MAX_LEVEL = 13;
+  }
+  required Result result = 1;
+  repeated ResInfo infos = 2;
+  repeated ResInfo changes = 3;
+}
+
+message CrusadeEndRequest {
+  repeated FightingInfo info = 2;
+}
+
+message CrusadeEndReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    INVALID_BATTLE = 10; // 必须是10，要与FightEndReply中的相同
+  }
+  required Result result = 1;
+  repeated ResInfo infos = 2;
+  repeated ResInfo changes = 3;
+}
+
+message CrusadeStageRequest {
+  repeated double hero_id = 1; // 驻扎英雄到刚打完的关
+}
+
+message CrusadeStageReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+  }
+  required Result result = 1;
+  repeated ResInfo infos = 2;
+  repeated ResInfo changes = 3;
+}
+
+message RedeemCodeRequest {
+  required string code = 1;
+}
+
+message RedeemCodeReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    REDEEM_NOT_VALID = 11;
+    REDEEM_RESTRICTED = 12;
+    REDEEM_PARTICIPATED = 13;
+  }
+  required Result result = 1;
+  repeated ResInfo infos = 2;
+  repeated ResInfo changes = 3;
+}
+
+
+/** 选择初始英雄
+ * 如服务器已经处理过，会返回 WRONG，
+ * 此时请用 QueryRequest 获取所需信息。
+ */
+
+message PickFirstHeroRequest {
+  optional int32 meta = 1; // 根据 config.json/init/hero 选择组下标 0 或 1
+  optional bool debug = 2; // 测试使用，客户端忽略
+}
+
+message PickFirstHeroReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+  }
+  required Result result = 1;
+  repeated ResInfo infos = 2; // 如成功，应包含初始英雄和阵型信息
+}
+
+/** 作弊命令
+ * 向服务器发出一系列字符串命令，会收到一些执行结果。
+ * 需要服务器开启调试模式。
+ * 命令示例（每行一个命令，@ 后是注释，不用加引号）：
+"gold is 12    @ 将金币数设置为 12"
+"gold 123      @ 增加 123金币"
+"gold -123     @ 减少 123金币"
+"diamond is 12 @ 将钻石数设置为 12"
+"diamond 123   @ 增加 123钻石"
+"diamond -123  @ 减少 123钻石"
+"energy 234    @ 将精力设置为 234"
+"level 34      @ 将等级设成 34"
+"item 4900     @ 增加一个 meta 为 4900 的物品"
+"item 900 3    @ 增加 3 个 meta 为 900 的物品"
+"item 77 -3    @ 减少 3 个 meta 为 77 的物品"
+"loot 333 3    @ 增加 3 个 meta 为 333 的可抢夺物品（不能减少）"
+"equip 95005   @ 增加一个 meta 为 95005 的装备"
+"equipset 3 98 @ id=3 装备 meta 改为 98"
+"hero 10000    @ 增加一个 meta 为 10000 的英雄"
+"hero 10000 3  @ 增加 3 个 meta 为 10000 的英雄"
+"alchemy       @ 把用户的炼金术日期设置为昨天"
+"charge 1 0    @ 给用户充值第N档，不会涉及首冲，仅添加db, 0 代表充值日期偏差"
+"skillshop 1   @ 把用户的绝杀轮盘状态激活 参数必须是 1 2 3 代表第2 3 4档次"
+"hero 3 lv 34  @ 设置 id=3 的英雄为 34 级"
+"trainer 2 11  @ 设置 id=2 的训练营上次结算经验绝对时间（毫秒）为11"
+"friend clear  @ 清除自己记录中的好友礼物信息"
+"friend t 333  @ 强行单方面加333为好友"
+"checkpoint 33 @ 完成关卡并重置信息"
+"dunboss next  @ 下次PVE必出随机boss"
+"dunboss clear @ 清空本人随机boss信息"
+"vip 3         @ 设置vip等级为3"
+"formforce 33  @ 设置formation表中的战力为33"
+"duncredit -33 @ 减少地下城积分33"
+"petcd 1       @ 清除pet喂养cd"
+"arena c 300   @ 将竞技场积分设为 300"
+"arena d 30 40 @ 竞技场挑战，让accId为30的挑战accId为40的"
+*/
+
+message MockRequest {
+  repeated string commands = 1;
+}
+
+message MockReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+  }
+  required Result result = 1;
+  repeated string results = 2;
+}
+
+/** 英雄属性洗炼
+ */
+
+enum HeroCustomMode {
+  ATTR_GOLD = 1; // 金币洗炼
+  ATTR_DIAMOND = 2; // 钻石洗炼
+  ATTR_MINUS = 3; // 降低数值
+  ATTR_ACCEPT = 6; // 接受上次洗炼数值
+  ATTR_CANCEL = 7; // 取消上次洗炼数值
+}
+
+message HeroCustomRequest { // 属性洗炼
+  required double id = 1;
+  required HeroCustomMode mode = 2;
+  optional Attributes custom_attrs = 3; // ATTR_MINUS 时指定降低数量，写正数
+  optional int32 times = 4; // 洗炼次数，不填为1
+}
+
+message HeroCustomReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    NOT_FOUND = 11;
+    NOT_AFFORDABLE = 12; // 货币不足
+    NOT_ENOUGH_LEVEL = 13;
+    FULL = 14;
+  }
+  required Result result = 1;
+  optional HeroCustomMode mode = 2;
+  optional int32 times = 3; // 最终洗炼次数，OK时不填为1
+  repeated ResInfo infos = 6;
+  repeated ResInfo changes = 7;
+}
+
+/** 排行榜
+ * 使用字符串作为标识（string board = 1）：
+ *  pvp_top 竞技场排行榜
+ *  force_top 战力排行榜
+ *  pvp_friend 竞技场好友排行
+ *  force_friend 好友战力排行
+ *  dun_top 地下城积分排行榜
+ */
+
+message BoardEntry {
+  required int32 rank = 1;
+  optional double id = 2;
+  optional int32 head = 5;
+  optional string name = 6;
+  optional int32 score = 7; // 排序依据。战力排行榜里就是战力；竞技场排行榜排序依据就是rank，此属性为null。
+  optional int32 level = 8;
+  optional int32 force = 9; // 玩家战力，可能与战力排行榜中不同。
+  optional int32 vip = 10;
+  optional int32 credit = 11; // 竞技场胜利可抢夺积分
+  optional int32 title_id = 14; // 玩家称号ID
+}
+
+message BoardInfo {
+  required string board = 1;
+  repeated BoardEntry entries = 2;
+  message Account {
+    required int32 rank = 1;
+    optional int32 score = 2;
+  }
+  optional Account account = 3;
+}
+
+message BoardRequest {
+  repeated string boards = 1;
+}
+
+message BoardReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    NOT_FOUND = 11;
+  }
+  required Result result = 1;
+  repeated BoardInfo boards = 2;
+}
+
+/** 竞技场
+ */
+
+message ArenaInfo {
+  optional int32 rank = 1;
+  optional int32 credits = 2; // 积分
+  optional int32 seconds_to_next_credit = 3;
+  optional int32 remaining_challenges = 6;
+  optional BoardInfo foes = 7;
+  optional int32 seconds_to_free_challenge = 9;
+  optional int32 force = 10; // 竞技场阵容战力
+}
+
+message ArenaChallengeRequest {
+  required double id = 1;
+  optional int32 rank = 2;
+  optional bool use_diamond = 3;
+  optional bool revenge = 4; // 复仇时 id 应为 replay_id
+  repeated double heroes = 5;
+}
+
+message ArenaChallengeReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    NOT_FOUND = 11;
+    NOT_AFFORDABLE = 12;
+    COOLING_DOWN = 21;
+    NEED_PAY = 22; // 不能免费挑战
+    RANK_CHANGED = 31;
+    RANK_LOW = 32; // 排名低于挑战者
+    REVENGED = 41; // 已经复仇过
+  }
+  required Result result = 1;
+  repeated ResInfo infos = 6; // 可能花钻石
+  repeated ResInfo changes = 7;
+  optional BattleInfo battle = 11;
+  repeated FightingInfo fights = 12;
+  optional bool win = 13;
+  optional ArenaInfo arena = 21;
+  optional int32 captured_credits = 22;
+}
+
+message ArenaRefreshRequest {
+}
+
+message ArenaRefreshReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    NOT_AFFORDABLE = 12;
+    COOLING_DOWN = 21;
+  }
+  required Result result = 1;
+  optional ArenaInfo arena = 21;
+}
+
+message ReplayStored {
+  optional BattleInfo battle = 11;
+  repeated FightingInfo fights = 12;
+}
+
+message ReplayInfo {
+  required double id = 1;
+  optional double time = 2;
+  optional bool revenged = 3;
+  optional double atk_id = 11;
+  optional double def_id = 12;
+  optional bool atk_win = 13;
+  optional int32 captured_credits = 14;
+  optional string atk_name = 16;
+  optional string def_name = 17;
+  optional int32 atk_level = 18;
+  optional int32 def_level = 19;
+  optional int32 atk_old_rank = 21;
+  optional int32 def_old_rank = 22;
+  optional int32 atk_head = 23;
+  optional int32 def_head = 24;
+}
+
+message ReplayRequest {
+  required double id = 1;
+}
+
+message ReplayReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    REPLAY_EXPIRED = 11;
+  }
+  required Result result = 1;
+  optional double id = 2;
+  optional double atk_id = 11;
+  optional double def_id = 12;
+  optional bool atk_win = 13;
+  optional BattleInfo battle = 21;
+  repeated FightingInfo fights = 22;
+}
+
+message DunBossFightRequest {
+  required double id = 1;
+  optional bool use_item = 2;
+  optional bool use_diamond = 3;
+  repeated double heroes = 5;
+}
+
+message DunBossFightReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    NOT_FOUND = 11;
+    NOT_AFFORDABLE = 12;
+    NOT_ENOUGH_LEVEL = 13;
+    COOLING_DOWN = 21;
+    NEED_PAY = 22;
+    DUN_BOSS_DIED = 23;
+    DUN_BOSS_FLEE = 24;
+  }
+  required Result result = 1;
+  repeated ResInfo infos = 2; // 可能花钻石
+  repeated ResInfo changes = 3;
+  optional bool win = 4;
+  optional BattleInfo battle = 11;
+  repeated FightingInfo fights = 12;
+}
+
+message RobChallengeRequest {
+  required int32 meta = 1; // 抢夺物品
+  required double id = 2; // 抢夺玩家
+  repeated double heroes = 5;
+}
+
+message RobChallengeReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    NOT_FOUND = 11;
+    NOT_AFFORDABLE = 12;
+    COOLING_DOWN = 21;
+    NEED_REFRESH = 31; // 目标无法被抢夺，需要刷新
+  }
+  required Result result = 1;
+  repeated ResInfo infos = 6;
+  repeated ResInfo changes = 7;
+  optional BattleInfo battle = 11;
+  repeated FightingInfo fights = 12;
+  optional bool win = 13;
+}
+
+/** 广播
+ */
+
+message BroadcastMessage {
+  optional string text = 1;
+  optional int32 tip = 2;
+  repeated string args = 3;
+}
+
+message ChatMessage {
+  required string text = 1;
+  optional double id = 2;
+  optional int32 head = 3;
+  optional string name = 4;
+  optional int32 level = 5;
+  optional int32 vip = 6;
+  optional uint32 time_utc = 8; // seconds since epoch
+  optional bool private = 9;
+  optional int32 title_id = 14; // 玩家称号ID
+}
+
+message ChatRequest {
+  required string text = 1;
+  optional double id = 2; // 私聊目标id
+  optional bool use_diamond = 3;
+}
+
+message ChatReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    NOT_AFFORDABLE = 11;
+    SENSITIVE = 23; // 包含敏感词
+  }
+  required Result result = 1;
+  repeated ResInfo infos = 2;
+  repeated ResInfo changes = 3;
+  optional string forbid_by = 4; // 被谁禁言
+}
+
+message ChatForbidRequest {
+  required double id = 1; // 目标id
+}
+
+message ChatForbidReply {
+  enum Result {
+    OK = 0;
+    RETRY = 1;
+    NEED_LOGIN = 2;
+    WRONG = 3;
+    CHAT_FORBID_TIMES_OUT = 11;
+    CHAT_FORBID_ALREADY = 12;
+  }
+  required Result result = 1;
+}
+
+message NeedsQueryMessage {
+  required ResCategory category = 1;
+}
+
